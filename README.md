@@ -2,6 +2,8 @@
 
 A proof-of-concept for a game that involves communication delay.
 
+![](signal-game-example.gif)
+
 ## Development
 
 To get an interactive development environment run:
