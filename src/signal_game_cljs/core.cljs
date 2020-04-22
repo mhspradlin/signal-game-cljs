@@ -12,6 +12,7 @@
 (def window-height 500)
 (def ship-speed 0.05)
 (def ping-speed (* 3 ship-speed))
+(def portal-radius 7)
 
 (defn draw-background
   [svg]
@@ -22,6 +23,40 @@
         (.style "stroke" "black")
         (.style "fill" "black")))
 
+(def level-5-state
+  {:signal-tower-pos {:x 100 :y 250}
+   :ship             {:x 125 :y 250 :vector {:v 0 :theta 0}}
+   :pings            []
+   :goal             {:x 100 :y 50}
+   :walls            [{:x0 75 :y0 30 :x1 75 :y1 70}
+                      {:x0 75 :y0 30 :x1 170 :y1 30}
+                      {:x0 75 :y0 70 :x1 130 :y1 70}
+                      {:x0 130 :y0 70 :x1 130 :y1 105}
+                      {:x0 130 :y0 105 :x1 170 :y1 105}
+                      {:x0 170 :y0 30 :x1 170 :y1 105}
+                      {:x0 75 :y0 230 :x1 75 :y1 270}
+                      {:x0 75 :y0 230 :x1 130 :y1 230}
+                      {:x0 75 :y0 270 :x1 170 :y1 270}
+                      {:x0 170 :y0 270 :x1 170 :y1 205}
+                      {:x0 130 :y0 205 :x1 170 :y1 205}
+                      {:x0 130 :y0 230 :x1 130 :y1 205}
+                      ]
+   :portals          {:a {:x 150 :y 225 :dest :b}
+                      :b {:x 150 :y 85 :dest :a}}
+   :next-level       nil})
+(def level-4-state
+  {:signal-tower-pos {:x 200 :y 275}
+   :ship             {:x 200 :y 250 :vector {:v 0 :theta (* 1.5 Math/PI)}}
+   :pings            []
+   :goal             {:x 200 :y 50}
+   :walls            [{:x0 100 :y0 0 :x1 100 :y1 300}
+                      {:x0 300 :y0 0 :x1 300 :y1 300}
+                      {:x0 100 :y0 175 :x1 300 :y1 175}
+                      {:x0 100 :y0 0 :x1 300 :y1 0}
+                      {:x0 100 :y0 300 :x1 300 :y1 300}]
+   :portals          {:a {:x 200 :y 200 :dest :b}
+                      :b {:x 200 :y 150 :dest :a}}
+   :next-level       nil})
 (def level-3-state
   {:signal-tower-pos {:x 200 :y 275}
    :ship {:x 200 :y 250 :vector {:v 0 :theta (* 1.5 Math/PI)}}
@@ -202,6 +237,32 @@
       (.data (clj->js (:walls state)))
       (.join enter-walls update-walls)))
 
+(defn enter-portals
+  [enter]
+  (-> enter
+      (.append "g")
+      (.classed "portal" true)
+      (.append "circle")
+        (.attr "r" portal-radius)
+        (.attr "cx" (fn [d] (.-x d)))
+        (.attr "cy" (fn [d] (.-y d)))
+        (.attr "stroke-width" 2)
+        (.attr "stroke" "white")))
+
+(defn update-portals
+  [update]
+  (-> update
+      (.select "circle")
+        (.attr "cx" (fn [d] (.-x d)))
+        (.attr "cy" (fn [d] (.-y d)))))
+
+(defn draw-portals
+  [svg state]
+  (-> svg
+      (.selectAll ".portal")
+      (.data (clj->js (vals (:portals state))))
+      (.join enter-portals update-portals)))
+
 (defn draw-state
   [svg state]
   (-> svg
@@ -209,7 +270,8 @@
       (.call #(draw-ship % state))
       (.call #(draw-pings % state))
       (.call #(draw-goal % state))
-      (.call #(draw-walls % state))))
+      (.call #(draw-walls % state))
+      (.call #(draw-portals % state))))
 
 (defn tick-ping
   [ms-diff ping]
@@ -282,6 +344,22 @@
           false
           walls))
 
+; Returns :dest of first portal collision, if there is one
+(defn first-ship-portal-collision?
+  [prev-ship curr-ship portals-positions]
+  (reduce #(when (and (< (get-ship-dist curr-ship %2) portal-radius)
+                      (> (get-ship-dist prev-ship %2) portal-radius))
+             (reduced (:dest %2)))
+          nil
+          portals-positions))
+
+; Returns new ship position
+(defn ship-teleported?
+  [prev-ship curr-ship portals]
+  (let [teleported-portal-id? (first-ship-portal-collision? prev-ship curr-ship (vals portals))]
+    (if teleported-portal-id?
+      (select-keys (teleported-portal-id? portals) [:x :y]))))
+
 (defn update-game-state
   [last-tick current-tick old-state]
   (let [ms-diff (- current-tick last-tick)
@@ -292,15 +370,23 @@
                                                 (:signal-tower-pos old-state))
                                  (get-ship-dist moved-ship
                                                 (:signal-tower-pos old-state)))
-        new-ship (assoc moved-ship
-                   :vector
-                   ((:dv ping-updates) (:vector moved-ship)))
+        turned-ship (assoc moved-ship
+                      :vector
+                      ((:dv ping-updates) (:vector moved-ship)))
+        teleported-ship-pos? (ship-teleported? (:ship old-state) turned-ship (:portals old-state))
+        new-ship (if teleported-ship-pos?
+                   (assoc turned-ship
+                     :x (:x teleported-ship-pos?)
+                     :y (:y teleported-ship-pos?))
+                   turned-ship)
         new-state (if (ship-at-goal? moved-ship (:goal old-state))
                     (assoc (:next-level old-state)
                            :initial-state (:next-level old-state))
                     (assoc old-state
                       :ship new-ship
                       :pings (:pings ping-updates)))]
+    (when teleported-ship-pos?
+      (.info js/console (str teleported-ship-pos?)))
     (if (ship-destroyed? (:ship old-state) moved-ship (:walls old-state))
       (do
         (assoc (:initial-state old-state)
@@ -377,8 +463,6 @@
   (-> (d3/select "body")
       (.on "keydown" #(handle-keypress (.-event d3)))))
 
-#_(defn mount [el]
-  (reagent/render-component [hello-world] el))
 (defn mount [el]
   (let [starting-state (assoc level-1-state :initial-state level-1-state)]
     (render-game el starting-state)

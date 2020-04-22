@@ -12,7 +12,7 @@
                  [reagent "0.8.1"]
                  [cljsjs/d3 "5.12.0-0"]]
 
-  :source-paths ["src"]
+  :source-paths ["src" "script"]
 
   :aliases {"fig"       ["trampoline" "run" "-m" "figwheel.main"]
             "fig:build" ["trampoline" "run" "-m" "figwheel.main" "-b" "dev" "-r"]
@@ -21,5 +21,7 @@
 
   :profiles {:dev {:dependencies [[com.bhauman/figwheel-main "0.2.3"]
                                   [com.bhauman/rebel-readline-cljs "0.1.4"]]
+                   :resource-paths ["target"]
+                   :clean-targets ^{:protect false} ["target"]
                    }})
 
