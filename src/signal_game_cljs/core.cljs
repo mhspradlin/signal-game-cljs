@@ -23,6 +23,23 @@
         (.style "stroke" "black")
         (.style "fill" "black")))
 
+(def level-6-state
+  {:signal-tower-pos {:x 100 :y 250}
+   :ship             {:x 100 :y 225 :vector {:v 0 :theta (/ Math/PI -2)}}
+   :pings            []
+   :goal             {:x 120 :y 250}
+   :walls            [{:x0 90 :y0 145 :x1 90 :y1 260}
+                      {:x0 90 :y0 145 :x1 225 :y1 145}
+                      {:x0 110 :y0 165 :x1 205 :y1 165}
+                      {:x0 110 :y0 240 :x1 205 :y1 240}
+                      {:x0 90 :y0 260 :x1 225 :y1 260}
+                      {:x0 225 :y0 145 :x1 225 :y1 260}
+                      {:x0 110 :y0 165 :x1 110 :y1 260}
+                      {:x0 205 :y0 165 :x1 205 :y1 240}
+                      ]
+   :portals          {:a {:x 100 :y 155 :dest :b}
+                      :b {:x 215 :y 250 :dest :a}}
+   :next-level       nil})
 (def level-5-state
   {:signal-tower-pos {:x 100 :y 250}
    :ship             {:x 125 :y 250 :vector {:v 0 :theta 0}}
@@ -43,7 +60,7 @@
                       ]
    :portals          {:a {:x 150 :y 225 :dest :b}
                       :b {:x 150 :y 85 :dest :a}}
-   :next-level       nil})
+   :next-level       level-6-state})
 (def level-4-state
   {:signal-tower-pos {:x 200 :y 275}
    :ship             {:x 200 :y 250 :vector {:v 0 :theta (* 1.5 Math/PI)}}
@@ -56,7 +73,7 @@
                       {:x0 100 :y0 300 :x1 300 :y1 300}]
    :portals          {:a {:x 200 :y 200 :dest :b}
                       :b {:x 200 :y 150 :dest :a}}
-   :next-level       nil})
+   :next-level       level-5-state})
 (def level-3-state
   {:signal-tower-pos {:x 200 :y 275}
    :ship {:x 200 :y 250 :vector {:v 0 :theta (* 1.5 Math/PI)}}
@@ -69,7 +86,7 @@
            {:x0 150 :y0 100 :x1 300 :y1 100}
            {:x0 100 :y0 0 :x1 300 :y1 0}
            {:x0 100 :y0 300 :x1 300 :y1 300}]
-   :next-level nil})
+   :next-level level-4-state})
 (def level-2-state
   {:signal-tower-pos {:x 300 :y 275}
    :ship {:x 300 :y 250 :vector {:v 0 :theta (* 1.5 Math/PI)}}
