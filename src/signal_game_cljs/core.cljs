@@ -28,7 +28,7 @@
         (.style "fill" "black")))
 
 (def level-8-state
-  {:signal-tower-pos {:x 30 :y 70}
+  {:signal-tower-pos {:x 30 :y 85}
    :ship             {:x 50 :y 70 :vector {:v 0 :theta 0}}
    :pings            []
    :goal             {:x 50 :y 50}
@@ -39,7 +39,7 @@
                       {:x0 40 :y0 60 :x1 140 :y1 60}
                       ]
    :portals          {}
-   :repeaters        [{:x 30 :y 50}]
+   :repeaters        [{:x 30 :y 35}]
    :next-level       nil})
 (def level-7-state
   {:signal-tower-pos {:x 150 :y 105}
@@ -304,6 +304,7 @@
         (.attr "y1" (fn [d] (.-y0 d)))
         (.attr "x2" (fn [d] (.-x1 d)))
         (.attr "y2" (fn [d] (.-y1 d)))
+        (.attr "stroke-linecap" "square")
         (.attr "stroke-width" 2)
         (.attr "stroke" "white")))
 
@@ -347,10 +348,11 @@
 
 (defn draw-portals
   [svg state]
-  (-> svg
-      (.selectAll ".portal")
-      (.data (clj->js (vals (:portals state))))
-      (.join enter-portals update-portals)))
+  (let [svg-portals? (vals (:portals state))]
+    (-> svg
+        (.selectAll ".portal")
+        (.data (clj->js (if svg-portals? svg-portals? [])))
+        (.join enter-portals update-portals))))
 
 (defn transform-repeater
   [d]
@@ -399,10 +401,18 @@
   {:prev ping
    :curr (update ping :r + (* ms-diff ping-speed))})
 
-(defn get-ship-dist
-  [ship xyentity]
-  (Math/sqrt (+ (Math/pow (- (:x ship) (:x xyentity)) 2)
-                (Math/pow (- (:y ship) (:y xyentity)) 2))))
+(defn get-dist
+  [xy0 xy1]
+  (Math/sqrt (+ (Math/pow (- (:x xy0) (:x xy1)) 2)
+                (Math/pow (- (:y xy0) (:y xy1)) 2))))
+
+(defn crossed-wavefront
+  [prev-wave-dist curr-wave-dist prev-target-dist curr-target-dist]
+  (or
+    (and (< prev-wave-dist prev-target-dist)
+         (> curr-wave-dist curr-target-dist))
+    (and (> prev-wave-dist prev-target-dist)
+         (< curr-wave-dist curr-target-dist))))
 
 (defn ping-collision-reducer
   [prev-ship curr-ship]
@@ -410,13 +420,9 @@
     [_ ping-tick]
     (let [prev-ping (:prev ping-tick)
           curr-ping (:curr ping-tick)
-          prev-ping-dist (get-ship-dist prev-ship prev-ping)
-          curr-ping-dist (get-ship-dist curr-ship curr-ping)]
-      (when (or
-              (and (< (:r prev-ping) prev-ping-dist)
-                   (> (:r curr-ping) curr-ping-dist))
-              (and (> (:r prev-ping) prev-ping-dist)
-                   (< (:r curr-ping) curr-ping-dist)))
+          prev-ping-dist (get-dist prev-ship prev-ping)
+          curr-ping-dist (get-dist curr-ship curr-ping)]
+      (when (crossed-wavefront (:r prev-ping) (:r curr-ping) prev-ping-dist curr-ping-dist)
         (reduced (:dv curr-ping))))))
 
 (defn get-first-collision?
@@ -429,11 +435,14 @@
   [pings]
   (filter #(< (:r %) board-span) pings))
 
-; Returns {:pings new-pings :dv change-to-vector}
 (defn tick-pings
-  [ms-diff pings prev-ship curr-ship]
-  (let [ping-ticks (map #(tick-ping ms-diff %) pings)
-        dv? (get-first-collision? ping-ticks prev-ship curr-ship)
+  [ms-diff pings]
+  (map #(tick-ping ms-diff %) pings))
+
+; Returns {:pings new-pings :dv change-to-vector}
+(defn apply-ping-updates
+  [ping-ticks prev-ship curr-ship]
+  (let [dv? (get-first-collision? ping-ticks prev-ship curr-ship)
         dv (if (nil? dv?) identity dv?)
         new-pings (->> ping-ticks
                        (map :curr)
@@ -451,7 +460,7 @@
 
 (defn ship-at-goal?
   [ship goal]
-  (< (get-ship-dist ship goal) 10))
+  (< (get-dist ship goal) 10))
 
 ; See https://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect
 (defn ship-collided-with-wall?
@@ -480,8 +489,10 @@
 ; Returns :dest of first portal collision, if there is one
 (defn first-ship-portal-collision?
   [prev-ship curr-ship portals-positions]
-  (reduce #(when (and (< (get-ship-dist curr-ship %2) portal-radius)
-                      (> (get-ship-dist prev-ship %2) portal-radius))
+  ; This does not use crossed-wavefront since we only want to teleport when the ship
+  ; goes from outside the portal to inside
+  (reduce #(when (and (< (get-dist curr-ship %2) portal-radius)
+                      (> (get-dist prev-ship %2) portal-radius))
              (reduced (:dest %2)))
           nil
           portals-positions))
@@ -493,14 +504,37 @@
     (if teleported-portal-id?
       (select-keys (teleported-portal-id? portals) [:x :y]))))
 
+(defn new-pings-for-repeater
+  [ping-tick repeater]
+  (let [prev-ping (:prev ping-tick)
+        curr-ping (:curr ping-tick)]
+    (if (and
+          (:is-user prev-ping)
+          (crossed-wavefront (:r prev-ping) (:r curr-ping)
+                             (get-dist prev-ping repeater) (get-dist curr-ping repeater)))
+      [{:x (:x repeater)
+        :y (:y repeater)
+        :dv (:dv prev-ping)
+        :r 0}]
+      [])))
+
+(defn new-repeater-pings-for-ping-tick
+  [ping-tick repeaters]
+  (mapcat #(new-pings-for-repeater ping-tick %) repeaters))
+
+(defn new-repeater-pings
+  [ping-ticks repeaters]
+  (mapcat #(new-repeater-pings-for-ping-tick % repeaters) ping-ticks))
+
 (defn update-game-state
   [last-tick current-tick old-state]
   (let [ms-diff (- current-tick last-tick)
         moved-ship (move-ship ms-diff (:ship old-state))
-        ping-updates (tick-pings ms-diff
-                                 (:pings old-state)
-                                 (:ship old-state)
-                                 moved-ship)
+        ping-ticks (tick-pings ms-diff (:pings old-state))
+        ping-updates (apply-ping-updates ping-ticks
+                                         (:ship old-state)
+                                         moved-ship)
+        repeater-pings (new-repeater-pings ping-ticks (:repeaters old-state))
         turned-ship (assoc moved-ship
                       :vector
                       ((:dv ping-updates) (:vector moved-ship)))
@@ -510,12 +544,13 @@
                      :x (:x teleported-ship-pos?)
                      :y (:y teleported-ship-pos?))
                    turned-ship)
+        new-pings (concat (:pings ping-updates) repeater-pings)
         new-state (if (ship-at-goal? moved-ship (:goal old-state))
                     (assoc (:next-level old-state)
                            :initial-state (:next-level old-state))
                     (assoc old-state
                       :ship new-ship
-                      :pings (:pings ping-updates)))]
+                      :pings new-pings))]
     (if (ship-destroyed? (:ship old-state) moved-ship (:walls old-state))
       (do
         (assoc (:initial-state old-state)
@@ -540,7 +575,8 @@
                 (conj prev-pings {:dv (:dv (:command ping?))
                                   :r 0
                                   :x (:x (:signal-tower-pos game-state))
-                                  :y (:y (:signal-tower-pos game-state))}))]
+                                  :y (:y (:signal-tower-pos game-state))
+                                  :is-user true}))]
     (assoc game-state :pings pings)))
 
 (defn render-game
@@ -596,7 +632,7 @@
       (.on "keydown" #(handle-keypress (.-event d3)))))
 
 (defn mount [el]
-  (let [starting-state (assoc level-8-state :initial-state level-8-state)]
+  (let [starting-state (assoc level-7-state :initial-state level-7-state)]
     (render-game el starting-state)
     (register-keypress-handlers)
     (animate-frame el starting-state)))
