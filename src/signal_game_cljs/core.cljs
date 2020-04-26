@@ -23,6 +23,34 @@
         (.style "stroke" "black")
         (.style "fill" "black")))
 
+(def level-7-state
+  {:signal-tower-pos {:x 150 :y 105}
+   :ship             {:x 150 :y 150 :vector {:v 0 :theta (/ Math/PI -2)}}
+   :pings            []
+   :goal             {:x 150 :y 40}
+   :walls            [{:x0 50 :y0 50 :x1 50 :y1 250}
+                      {:x0 50 :y0 50 :x1 140 :y1 50}
+                      {:x0 160 :y0 50 :x1 250 :y1 50}
+                      {:x0 250 :y0 50 :x1 250 :y1 250}
+                      {:x0 50 :y0 250 :x1 250 :y1 250}
+                      {:x0 70 :y0 70 :x1 230 :y1 70}
+                      {:x0 70 :y0 140 :x1 230 :y1 140}
+                      {:x0 70 :y0 160 :x1 140 :y1 160}
+                      {:x0 160 :y0 160 :x1 230 :y1 160}
+                      {:x0 70 :y0 230 :x1 140 :y1 230}
+                      {:x0 160 :y0 230 :x1 230 :y1 230}
+                      {:x0 70 :y0 70 :x1 70 :y1 140}
+                      {:x0 230 :y0 70 :x1 230 :y1 140}
+                      {:x0 70 :y0 160 :x1 70 :y1 230}
+                      {:x0 140 :y0 160 :x1 140 :y1 230}
+                      {:x0 230 :y0 160 :x1 230 :y1 230}
+                      {:x0 160 :y0 160 :x1 160 :y1 230}
+                      ]
+   :portals          {:a {:x 100 :y 150 :dest :b}
+                      :b {:x 150 :y 240 :dest :a}
+                      :c {:x 240 :y 150 :dest :d}
+                      :d {:x 150 :y 60 :dest :c}}
+   :next-level       nil})
 (def level-6-state
   {:signal-tower-pos {:x 100 :y 250}
    :ship             {:x 100 :y 225 :vector {:v 0 :theta (/ Math/PI -2)}}
@@ -39,7 +67,7 @@
                       ]
    :portals          {:a {:x 100 :y 155 :dest :b}
                       :b {:x 215 :y 250 :dest :a}}
-   :next-level       nil})
+   :next-level       level-7-state})
 (def level-5-state
   {:signal-tower-pos {:x 100 :y 250}
    :ship             {:x 125 :y 250 :vector {:v 0 :theta 0}}
