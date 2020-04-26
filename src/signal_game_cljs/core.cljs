@@ -14,6 +14,10 @@
 (def ping-speed (* 3 ship-speed))
 (def portal-radius 7)
 
+(def board-span
+  (Math/sqrt (+ (Math/pow window-width 2)
+                (Math/pow window-height 2))))
+
 (defn draw-background
   [svg]
   (-> svg
@@ -23,6 +27,20 @@
         (.style "stroke" "black")
         (.style "fill" "black")))
 
+(def level-8-state
+  {:signal-tower-pos {:x 30 :y 70}
+   :ship             {:x 50 :y 70 :vector {:v 0 :theta 0}}
+   :pings            []
+   :goal             {:x 50 :y 50}
+   :walls            [{:x0 40 :y0 40 :x1 160 :y1 40}
+                      {:x0 40 :y0 40 :x1 40 :y1 80}
+                      {:x0 160 :y0 40 :x1 160 :y1 80}
+                      {:x0 40 :y0 80 :x1 160 :y1 80}
+                      {:x0 40 :y0 60 :x1 140 :y1 60}
+                      ]
+   :portals          {}
+   :repeaters        [{:x 30 :y 50}]
+   :next-level       nil})
 (def level-7-state
   {:signal-tower-pos {:x 150 :y 105}
    :ship             {:x 150 :y 150 :vector {:v 0 :theta (/ Math/PI -2)}}
@@ -50,7 +68,8 @@
                       :b {:x 150 :y 240 :dest :a}
                       :c {:x 240 :y 150 :dest :d}
                       :d {:x 150 :y 60 :dest :c}}
-   :next-level       nil})
+   :repeaters        []
+   :next-level       level-8-state})
 (def level-6-state
   {:signal-tower-pos {:x 100 :y 250}
    :ship             {:x 100 :y 225 :vector {:v 0 :theta (/ Math/PI -2)}}
@@ -67,6 +86,7 @@
                       ]
    :portals          {:a {:x 100 :y 155 :dest :b}
                       :b {:x 215 :y 250 :dest :a}}
+   :repeaters        []
    :next-level       level-7-state})
 (def level-5-state
   {:signal-tower-pos {:x 100 :y 250}
@@ -88,6 +108,7 @@
                       ]
    :portals          {:a {:x 150 :y 225 :dest :b}
                       :b {:x 150 :y 85 :dest :a}}
+   :repeaters        []
    :next-level       level-6-state})
 (def level-4-state
   {:signal-tower-pos {:x 200 :y 275}
@@ -101,6 +122,7 @@
                       {:x0 100 :y0 300 :x1 300 :y1 300}]
    :portals          {:a {:x 200 :y 200 :dest :b}
                       :b {:x 200 :y 150 :dest :a}}
+   :repeaters        []
    :next-level       level-5-state})
 (def level-3-state
   {:signal-tower-pos {:x 200 :y 275}
@@ -114,6 +136,7 @@
            {:x0 150 :y0 100 :x1 300 :y1 100}
            {:x0 100 :y0 0 :x1 300 :y1 0}
            {:x0 100 :y0 300 :x1 300 :y1 300}]
+   :repeaters        []
    :next-level level-4-state})
 (def level-2-state
   {:signal-tower-pos {:x 300 :y 275}
@@ -123,6 +146,8 @@
            {:x0 0 :y0 150 :x1 200 :y1 150}
            {:x0 200 :y0 150 :x1 200 :y1 300}
            {:x0 400 :y0 50 :x1 400 :y1 300}]
+   :repeaters        []
+   :portals {}
    :goal {:x 100 :y 100}
    :next-level level-3-state})
 (def level-1-state
@@ -136,6 +161,8 @@
            {:x0 225 :y0 175 :x1 300 :y1 175}
            {:x0 100 :y0 0 :x1 300 :y1 0}
            {:x0 100 :y0 300 :x1 300 :y1 300}]
+   :repeaters []
+   :portals {}
    :next-level level-2-state})
 
 (def new-direction-pings (chan 10))
@@ -193,15 +220,20 @@
         (.data (clj->js [ship]))
         (.join enter-ship update-ship))))
 
+(defn transform-ping
+  [d]
+  (str "translate(" (.-cx d) " " (.-cy d) ")"))
+
 (defn enter-pings
   [enter]
   (-> enter
       (.append "g")
         (.classed "ping" true)
+        (.attr "transform" transform-ping)
         (.append "circle")
           (.attr "r" (fn [d] (.-r d)))
-          (.attr "cx" (fn [d] (.-cx d)))
-          (.attr "cy" (fn [d] (.-cy d)))
+          (.attr "cx" 0)
+          (.attr "cy" 0)
           (.attr "fill" "none")
           (.attr "stroke" "white")
           (.attr "stroke-width" 2)))
@@ -209,42 +241,51 @@
 (defn update-pings
   [update]
   (-> update
+      (.attr "transform" transform-ping)
       (.select "circle")
         (.attr "r" (fn [d] (.-r d)))))
 
 (defn draw-pings
   [svg state]
-  (let [{pings :pings
-         signal-tower-pos :signal-tower-pos} state
-        svg-pings (->> pings
-                       (map #(select-keys % [:r]))
-                       (map #(assoc % :cx (:x signal-tower-pos)
-                                      :cy (:y signal-tower-pos))))]
+  (let [{pings :pings} state
+        svg-pings (map (fn [ping] {:r (:r ping) :cx (:x ping) :cy (:y ping)}) pings)]
     (-> svg
         (.selectAll ".ping")
         (.data (clj->js svg-pings))
         (.join enter-pings update-pings))))
+
+(defn transform-goal
+  [d]
+  (str "translate(" (- (.-x d) 7.5) " " (- (.-y d) 7.5) ")"))
 
 (defn enter-goal
   [enter]
   (-> enter
       (.append "g")
       (.classed "goal" true)
-      (.append "rect")
-        (.attr "x" 0)
-        (.attr "y" 0)
-        (.attr "width" 15)
-        (.attr "height" 15)
-        (.attr "fill" "white")))
+        (.attr "transform" transform-goal)
+      (.call #(-> %
+                  (.append "animateTransform")
+                    (.attr "attributeName" "transform")
+                    (.attr "attributeType" "XML")
+                    (.attr "additive" "sum")                ; Do not overwrite parent transform
+                    (.attr "type" "rotate")
+                    (.attr "from" "0 7.5 7.5")
+                    (.attr "to" "360 7.5 7.5")
+                    (.attr "dur" "12s")
+                    (.attr "repeatCount" "indefinite")))
+      (.call #(-> %
+                  (.append "rect")
+                    (.attr "x" 0)
+                    (.attr "y" 0)
+                    (.attr "width" 15)
+                    (.attr "height" 15)
+                    (.attr "fill" "white")))))
 
 (defn update-goal
   [update]
   (-> update
-      (.attr "transform"
-             (fn [d]
-               (str "translate(" (- (.-x d) 7.5) " " (- (.-y d) 7.5) ")"
-                 "rotate(" (mod (/ (.now js/performance) 30) 360)
-                           " " 7.5 " " 7.5 ")")))))
+      (.attr "transform" transform-goal)))
 
 (defn draw-goal
   [svg state]
@@ -282,24 +323,27 @@
       (.data (clj->js (:walls state)))
       (.join enter-walls update-walls)))
 
+(defn transform-portal
+  [d]
+  (str "translate(" (.-x d) " " (.-y d) ")"))
+
 (defn enter-portals
   [enter]
   (-> enter
       (.append "g")
       (.classed "portal" true)
+      (.attr "transform" transform-portal)
       (.append "circle")
         (.attr "r" portal-radius)
-        (.attr "cx" (fn [d] (.-x d)))
-        (.attr "cy" (fn [d] (.-y d)))
+        (.attr "cx" 0)
+        (.attr "cy" 0)
         (.attr "stroke-width" 2)
         (.attr "stroke" "white")))
 
 (defn update-portals
   [update]
   (-> update
-      (.select "circle")
-        (.attr "cx" (fn [d] (.-x d)))
-        (.attr "cy" (fn [d] (.-y d)))))
+      (.attr "transform" transform-portal)))
 
 (defn draw-portals
   [svg state]
@@ -307,6 +351,37 @@
       (.selectAll ".portal")
       (.data (clj->js (vals (:portals state))))
       (.join enter-portals update-portals)))
+
+(defn transform-repeater
+  [d]
+  (str "translate(" (- (.-x d) 5) " " (- (.-y d) 5) ")"
+       "rotate(45 5 5)"))
+
+(defn enter-repeaters
+  [enter]
+  (-> enter
+      (.append "g")
+      (.classed "repeater" true)
+      (.attr "transform" transform-repeater)
+      (.append "rect")
+        (.attr "width" 10)
+        (.attr "height" 10)
+        (.attr "x" 0)
+        (.attr "y" 0)
+        (.attr "stroke" "white")
+        (.attr "stroke-width" 2)))
+
+(defn update-repeaters
+  [update]
+  (-> update
+      (.attr "transform" transform-repeater)))
+
+(defn draw-repeaters
+  [svg state]
+  (-> svg
+      (.selectAll ".repeater")
+      (.data (clj->js (:repeaters state)))
+      (.join enter-repeaters update-repeaters)))
 
 (defn draw-state
   [svg state]
@@ -316,31 +391,49 @@
       (.call #(draw-pings % state))
       (.call #(draw-goal % state))
       (.call #(draw-walls % state))
-      (.call #(draw-portals % state))))
+      (.call #(draw-portals % state))
+      (.call #(draw-repeaters % state))))
 
 (defn tick-ping
   [ms-diff ping]
   {:prev ping
    :curr (update ping :r + (* ms-diff ping-speed))})
 
+(defn get-ship-dist
+  [ship xyentity]
+  (Math/sqrt (+ (Math/pow (- (:x ship) (:x xyentity)) 2)
+                (Math/pow (- (:y ship) (:y xyentity)) 2))))
+
+(defn ping-collision-reducer
+  [prev-ship curr-ship]
+  (fn
+    [_ ping-tick]
+    (let [prev-ping (:prev ping-tick)
+          curr-ping (:curr ping-tick)
+          prev-ping-dist (get-ship-dist prev-ship prev-ping)
+          curr-ping-dist (get-ship-dist curr-ship curr-ping)]
+      (when (or
+              (and (< (:r prev-ping) prev-ping-dist)
+                   (> (:r curr-ping) curr-ping-dist))
+              (and (> (:r prev-ping) prev-ping-dist)
+                   (< (:r curr-ping) curr-ping-dist)))
+        (reduced (:dv curr-ping))))))
+
 (defn get-first-collision?
-  [ping-ticks prev-ship-dist curr-ship-dist]
-  (reduce #(when (and
-                   (< (:r (:prev %2)) prev-ship-dist)
-                   (> (:r (:curr %2)) curr-ship-dist))
-             (reduced (:dv (:curr %2))))
+  [ping-ticks prev-ship curr-ship]
+  (reduce (ping-collision-reducer prev-ship curr-ship)
           nil
           ping-ticks))
 
 (defn drop-off-screen-pings
   [pings]
-  (filter #(< (:r %) (* (max window-width window-height) 2)) pings))
+  (filter #(< (:r %) board-span) pings))
 
 ; Returns {:pings new-pings :dv change-to-vector}
 (defn tick-pings
-  [ms-diff pings prev-ship-dist curr-ship-dist]
+  [ms-diff pings prev-ship curr-ship]
   (let [ping-ticks (map #(tick-ping ms-diff %) pings)
-        dv? (get-first-collision? ping-ticks prev-ship-dist curr-ship-dist)
+        dv? (get-first-collision? ping-ticks prev-ship curr-ship)
         dv (if (nil? dv?) identity dv?)
         new-pings (->> ping-ticks
                        (map :curr)
@@ -355,11 +448,6 @@
     (assoc ship
       :x (+ (:x ship) (* (Math/cos theta) magnitude-change))
       :y (+ (:y ship) (* (Math/sin theta) magnitude-change)))))
-
-(defn get-ship-dist
-  [ship xyentity]
-  (Math/sqrt (+ (Math/pow (- (:x ship) (:x xyentity)) 2)
-                (Math/pow (- (:y ship) (:y xyentity)) 2))))
 
 (defn ship-at-goal?
   [ship goal]
@@ -411,10 +499,8 @@
         moved-ship (move-ship ms-diff (:ship old-state))
         ping-updates (tick-pings ms-diff
                                  (:pings old-state)
-                                 (get-ship-dist (:ship old-state)
-                                                (:signal-tower-pos old-state))
-                                 (get-ship-dist moved-ship
-                                                (:signal-tower-pos old-state)))
+                                 (:ship old-state)
+                                 moved-ship)
         turned-ship (assoc moved-ship
                       :vector
                       ((:dv ping-updates) (:vector moved-ship)))
@@ -430,8 +516,6 @@
                     (assoc old-state
                       :ship new-ship
                       :pings (:pings ping-updates)))]
-    (when teleported-ship-pos?
-      (.info js/console (str teleported-ship-pos?)))
     (if (ship-destroyed? (:ship old-state) moved-ship (:walls old-state))
       (do
         (assoc (:initial-state old-state)
@@ -448,12 +532,15 @@
     (update-game-svg (-> (d3/select el) (.select "svg")) new-state)
     new-state))
 
-(defn add-ping
+(defn add-player-ping
   [ping? game-state]
   (let [prev-pings (:pings game-state)
         pings (if (nil? ping?)
                 prev-pings
-                (conj prev-pings {:dv (:dv (:command ping?)) :r 0}))]
+                (conj prev-pings {:dv (:dv (:command ping?))
+                                  :r 0
+                                  :x (:x (:signal-tower-pos game-state))
+                                  :y (:y (:signal-tower-pos game-state))}))]
     (assoc game-state :pings pings)))
 
 (defn render-game
@@ -478,7 +565,7 @@
       (.requestAnimationFrame js/window #(animate-frame el init-state now %))))
   ([el state prev-timestamp curr-timestamp]
     (as-> state x
-          (add-ping (poll! new-direction-pings) x)
+          (add-player-ping (poll! new-direction-pings) x)
           (update-game el x prev-timestamp curr-timestamp)
           (.requestAnimationFrame js/window #(animate-frame el x curr-timestamp %)))))
 
@@ -509,7 +596,7 @@
       (.on "keydown" #(handle-keypress (.-event d3)))))
 
 (defn mount [el]
-  (let [starting-state (assoc level-1-state :initial-state level-1-state)]
+  (let [starting-state (assoc level-8-state :initial-state level-8-state)]
     (render-game el starting-state)
     (register-keypress-handlers)
     (animate-frame el starting-state)))
