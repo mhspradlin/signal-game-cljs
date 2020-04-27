@@ -27,6 +27,24 @@
         (.style "stroke" "black")
         (.style "fill" "black")))
 
+(def level-9-state
+  {:signal-tower-pos {:x 20 :y 100}
+   :ship             {:x 50 :y 100 :vector {:v 0 :theta (* Math/PI -0.5)}}
+   :pings            []
+   :goal             {:x 150 :y 100}
+   :walls            [{:x0 40 :y0 40 :x1 160 :y1 40}
+                      {:x0 40 :y0 40 :x1 40 :y1 110}
+                      {:x0 160 :y0 40 :x1 160 :y1 110}
+                      {:x0 40 :y0 110 :x1 160 :y1 110}
+                      {:x0 60 :y0 60 :x1 60 :y1 110}
+                      {:x0 100 :y0 60 :x1 100 :y1 110}
+                      {:x0 140 :y0 60 :x1 140 :y1 110}
+                      {:x0 80 :y0 40 :x1 80 :y1 90}
+                      {:x0 120 :y0 40 :x1 120 :y1 90}
+                      ]
+   :portals          {}
+   :repeaters        [{:x 20 :y 50}]
+   :next-level       nil})
 (def level-8-state
   {:signal-tower-pos {:x 30 :y 85}
    :ship             {:x 50 :y 70 :vector {:v 0 :theta 0}}
@@ -40,7 +58,7 @@
                       ]
    :portals          {}
    :repeaters        [{:x 30 :y 35}]
-   :next-level       nil})
+   :next-level       level-9-state})
 (def level-7-state
   {:signal-tower-pos {:x 150 :y 105}
    :ship             {:x 150 :y 150 :vector {:v 0 :theta (/ Math/PI -2)}}
@@ -155,12 +173,10 @@
    :ship {:x 200 :y 250 :vector {:v 0 :theta (* 1.5 Math/PI)}}
    :pings []
    :goal {:x 200 :y 50}
-   :walls [{:x0 100 :y0 0 :x1 100 :y1 300}
-           {:x0 300 :y0 0 :x1 300 :y1 300}
-           {:x0 100 :y0 175 :x1 175 :y1 175}
-           {:x0 225 :y0 175 :x1 300 :y1 175}
-           {:x0 100 :y0 0 :x1 300 :y1 0}
-           {:x0 100 :y0 300 :x1 300 :y1 300}]
+   :walls [{:x0 180 :y0 30 :x1 180 :y1 295}
+           {:x0 220 :y0 30 :x1 220 :y1 295}
+           {:x0 180 :y0 30 :x1 220 :y1 30}
+           {:x0 180 :y0 295 :x1 220 :y1 295}]
    :repeaters []
    :portals {}
    :next-level level-2-state})
@@ -632,7 +648,7 @@
       (.on "keydown" #(handle-keypress (.-event d3)))))
 
 (defn mount [el]
-  (let [starting-state (assoc level-7-state :initial-state level-7-state)]
+  (let [starting-state (assoc level-1-state :initial-state level-1-state)]
     (render-game el starting-state)
     (register-keypress-handlers)
     (animate-frame el starting-state)))
@@ -648,6 +664,6 @@
 ;; specify reload hook with ^;after-load metadata
 (defn ^:after-load on-reload []
   (-> d3 (.selectAll "svg") (.remove))
-  (-> d3 (.select "body") (.on "keydown" nil))
+  (-> d3 (.select "body") (.on "keydown" (clj->js nil)))
   (mount-app-element)
 )
