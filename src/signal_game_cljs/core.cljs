@@ -157,13 +157,15 @@
    :repeaters        []
    :next-level level-4-state})
 (def level-2-state
-  {:signal-tower-pos {:x 300 :y 275}
-   :ship {:x 300 :y 250 :vector {:v 0 :theta (* 1.5 Math/PI)}}
+  {:signal-tower-pos {:x 300 :y 225}
+   :ship {:x 300 :y 200 :vector {:v 0 :theta (* 1.5 Math/PI)}}
    :pings []
-   :walls [{:x0 0 :y0 50 :x1 400 :y1 50}
-           {:x0 0 :y0 150 :x1 200 :y1 150}
-           {:x0 200 :y0 150 :x1 200 :y1 300}
-           {:x0 400 :y0 50 :x1 400 :y1 300}]
+   :walls [{:x0 50 :y0 50 :x1 325 :y1 50}
+           {:x0 50 :y0 150 :x1 275 :y1 150}
+           {:x0 50 :y0 50 :x1 50 :y1 150}
+           {:x0 275 :y0 250 :x1 325 :y1 250}
+           {:x0 275 :y0 150 :x1 275 :y1 250}
+           {:x0 325 :y0 50 :x1 325 :y1 250}]
    :repeaters        []
    :portals {}
    :goal {:x 100 :y 100}
@@ -190,16 +192,16 @@
         (.classed "signal-tower" true)
         (.append "circle")
           (.attr "r" 5)
-          (.attr "cx" (fn [d] (.-x d)))
-          (.attr "cy" (fn [d] (.-y d)))
+          (.attr "cx" (fn [d] (aget d "x")))
+          (.attr "cy" (fn [d] (aget d "y")))
           (.attr "fill" "white")))
 
 (defn update-signal-tower
   [update]
   (-> update
       (.select "circle")
-        (.attr "cx" (fn [d] (.-x d)))
-        (.attr "cy" (fn [d] (.-y d)))))
+        (.attr "cx" (fn [d] (aget d "x")))
+        (.attr "cy" (fn [d] (aget d "y")))))
 
 (defn draw-signal-tower
   [svg state]
@@ -224,9 +226,10 @@
   [update]
   (-> update
       (.attr "transform"
-             (fn [d] (str "translate(" (- (.-x d) 5) " " (- (.-y d) 5) ")"
-                          "rotate(" (* (.-theta (.-vector d)) (/ 360 (* 2 Math/PI)))
-                                     " " 5 " " 5 ")")))))
+             (fn [d]
+               (str "translate(" (- (aget d "x") 5) " " (- (aget d "y") 5) ")"
+                    "rotate(" (* (aget (aget d "vector") "theta") (/ 360 (* 2 Math/PI)))
+                            " " 5 " " 5 ")")))))
 
 (defn draw-ship
   [svg state]
@@ -238,7 +241,7 @@
 
 (defn transform-ping
   [d]
-  (str "translate(" (.-cx d) " " (.-cy d) ")"))
+  (str "translate(" (aget d "cx") " " (aget d "cy") ")"))
 
 (defn enter-pings
   [enter]
@@ -247,7 +250,7 @@
         (.classed "ping" true)
         (.attr "transform" transform-ping)
         (.append "circle")
-          (.attr "r" (fn [d] (.-r d)))
+          (.attr "r" (fn [d] (aget d "r")))
           (.attr "cx" 0)
           (.attr "cy" 0)
           (.attr "fill" "none")
@@ -259,7 +262,7 @@
   (-> update
       (.attr "transform" transform-ping)
       (.select "circle")
-        (.attr "r" (fn [d] (.-r d)))))
+        (.attr "r" (fn [d] (aget d "r")))))
 
 (defn draw-pings
   [svg state]
@@ -272,7 +275,7 @@
 
 (defn transform-goal
   [d]
-  (str "translate(" (- (.-x d) 7.5) " " (- (.-y d) 7.5) ")"))
+  (str "translate(" (- (aget d "x") 7.5) " " (- (aget d "y") 7.5) ")"))
 
 (defn enter-goal
   [enter]
@@ -316,10 +319,10 @@
       (.append "g")
       (.classed "wall" true)
       (.append "line")
-        (.attr "x1" (fn [d] (.-x0 d)))
-        (.attr "y1" (fn [d] (.-y0 d)))
-        (.attr "x2" (fn [d] (.-x1 d)))
-        (.attr "y2" (fn [d] (.-y1 d)))
+        (.attr "x1" (fn [d] (aget d "x0")))
+        (.attr "y1" (fn [d] (aget d "y0")))
+        (.attr "x2" (fn [d] (aget d "x1")))
+        (.attr "y2" (fn [d] (aget d "y1")))
         (.attr "stroke-linecap" "square")
         (.attr "stroke-width" 2)
         (.attr "stroke" "white")))
@@ -328,10 +331,10 @@
   [update]
   (-> update
       (.select "line")
-        (.attr "x1" (fn [d] (.-x0 d)))
-        (.attr "y1" (fn [d] (.-y0 d)))
-        (.attr "x2" (fn [d] (.-x1 d)))
-        (.attr "y2" (fn [d] (.-y1 d)))))
+        (.attr "x1" (fn [d] (aget d "x0")))
+        (.attr "y1" (fn [d] (aget d "y0")))
+        (.attr "x2" (fn [d] (aget d "x1")))
+        (.attr "y2" (fn [d] (aget d "y1")))))
 
 (defn draw-walls
   [svg state]
@@ -342,7 +345,7 @@
 
 (defn transform-portal
   [d]
-  (str "translate(" (.-x d) " " (.-y d) ")"))
+  (str "translate(" (aget d "x") " " (aget d "y") ")"))
 
 (defn enter-portals
   [enter]
@@ -372,7 +375,7 @@
 
 (defn transform-repeater
   [d]
-  (str "translate(" (- (.-x d) 5) " " (- (.-y d) 5) ")"
+  (str "translate(" (- (aget d "x") 5) " " (- (aget d "y") 5) ")"
        "rotate(45 5 5)"))
 
 (defn enter-repeaters
@@ -637,15 +640,15 @@
    40 {:dv stop-vector}})                                   ; Down arrow
 (defn handle-keypress
   [event]
-  (if (contains? arrow-keycodes-commands (.-keyCode event))
+  (if (contains? arrow-keycodes-commands (aget event "keyCode"))
     (let [now (.now js/performance)
-          command (get arrow-keycodes-commands (.-keyCode event))]
+          command (get arrow-keycodes-commands (aget event "keyCode"))]
       (put! new-direction-pings {:occur-time now :command command}))))
 
 (defn register-keypress-handlers
   []
   (-> (d3/select "body")
-      (.on "keydown" #(handle-keypress (.-event d3)))))
+      (.on "keydown" #(handle-keypress (aget d3 "event")))))
 
 (defn mount [el]
   (let [starting-state (assoc level-1-state :initial-state level-1-state)]
