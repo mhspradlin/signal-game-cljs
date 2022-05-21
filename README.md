@@ -4,6 +4,8 @@ A proof-of-concept for a game that involves communication delay.
 
 ![](signal-game-example.gif)
 
+You can play the prototype here: https://o.applicative.us/signal-game
+
 ## Development
 
 To get an interactive development environment run:
@@ -30,5 +32,5 @@ to emit signals.
 
 ## License
 
-Copyright © 2020 Mitch Spradlin
+Copyright © 2020-2022 Mitch Spradlin
 
